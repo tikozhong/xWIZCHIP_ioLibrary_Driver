@@ -8,14 +8,18 @@ filename: usr_udp.h
 #include "misc.h"
 #include "wizchip_conf.h"
 #include "usr_net_type.h"
+#include "ring_buffer.h"
 
 typedef struct{
 	u8 sn;
 	u8 protocol;
 	u16 localport;
 	ShortNetInfo_t destNetInfo;
-	u8 tx_memsz;	//send buffer size, in K-bytes
-	u8 rx_memsz;	//send buffer size, in K-bytes
+	u8 tx_memsz;	//wiznet chip's send buffer size, in K-bytes
+	u8 rx_memsz;	//wiznet chip's send buffer size, in K-bytes
+	RINGBUFF_T rxRB;
+	u8* rxRBPool;
+	u16 rxRBPoolLen;
 	// callback
 	void (*cb_newRcv)(u16 rcbBytes);
 	void (*cb_closed)();
@@ -43,6 +47,8 @@ void UdpDev_setup(
 	u8 tx_memsz,	//send buffer size, in K-bytes
 	u8 rx_memsz,	//send buffer size, in K-bytes	
 	u16 localport,
+	u8* rxRBPool,
+	u16 rxRBPoolLen,
 	void (*cb_newRcv)(u16 rcbBytes),	// callback while there are receive data
 	void (*cb_closed)()
 );

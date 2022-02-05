@@ -24,10 +24,11 @@ void UdpDev_setup(
 	u8 tx_memsz,	//send buffer size, in K-bytes
 	u8 rx_memsz,	//send buffer size, in K-bytes	
 	u16 localport,
+	u8* rxRBPool,
+	u16 rxRBPoolLen,
 	void (*cb_newRcv)(u16 rcbBytes),	// callback while there are receive data
 	void (*cb_closed)()
 ){
-	u8 i;
 	UdpRsrc_t *pRsrc = &dev->rsrc;
 	pRsrc->sn = sn;
 	pRsrc->tx_memsz = tx_memsz;
@@ -35,6 +36,10 @@ void UdpDev_setup(
 	pRsrc->localport = localport;
 	pRsrc->cb_newRcv = cb_newRcv;
 	pRsrc->cb_closed = cb_closed;
+	pRsrc->rxRBPool = rxRBPool;
+	pRsrc->rxRBPoolLen = rxRBPoolLen;
+
+	RingBuffer_Init(&pRsrc->rxRB, rxRBPool, 1, rxRBPoolLen);
 
 	// register function
 	dev->loop = TcpUdpLoop;
@@ -87,6 +92,7 @@ static  int32_t TcpUdpSend(UdpRsrc_t* p, u8* buff, u16 size){
 		}
 		sentsize += ret; // Don't care SOCKERR_BUSY, because it is zero.
 	}
+	return sentsize;
 }
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

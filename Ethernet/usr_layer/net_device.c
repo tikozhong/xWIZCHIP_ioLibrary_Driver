@@ -15,11 +15,10 @@
 #include "socket.h"
 
 //#include "board.h"
-
 static void net_dev_loop(WizDevRsrc *, u8 tick);
 static void net_printInfo(WizDevRsrc *pRsrc);
 static void net_initial(WizDevRsrc *);
-static void net_reLink(WizDevRsrc* pRsrc);
+static void net_reLink(WizDevRsrc* pRsrc, wiz_NetInfo info);
 
 static int32_t net_loop_tcpClient(TcpSeverRsrc_t* pRsrc);
 static void net_resumeTcpClient(TcpSeverRsrc_t* pRsrc);
@@ -46,6 +45,8 @@ static UdpDev_t* net_newUdp(
 	u8 tx_memsz,	//send buffer size, in K-bytes
 	u8 rx_memsz,	//send buffer size, in K-bytes
 	u16 localport,	
+	u8* rxRBPool,
+	u16 rxRBPoolLen,
 	void (*cb_newRcv)(u16 rcbBytes),	// callback while there are receive data
 	void (*cb_closed)()
 );
@@ -138,19 +139,22 @@ static void net_printInfo(WizDevRsrc *pRsrc){
 	ctlnetwork(CN_GET_NETINFO, (void*)&gWIZNETINFO);
 	// Display Network Information
 	ctlwizchip(CW_GET_ID,(void*)tmpstr);
-	if(pRsrc->gWIZNETINFO.dhcp == NETINFO_DHCP) pRsrc->print("\r\n===== %s NET CONF : DHCP =====\r\n",(char*)tmpstr);
-	else pRsrc->print("\r\n===== %s NET CONF : Static =====\r\n",(char*)tmpstr);
+//	if(pRsrc->gWIZNETINFO.dhcp == NETINFO_DHCP) pRsrc->print("\r\n===== %s NET CONF : DHCP =====\r\n",(char*)tmpstr);
+//	else pRsrc->print("\r\n===== %s NET CONF : Static =====\r\n",(char*)tmpstr);
+	//pRsrc->printS("======================\r\n");
 	pRsrc->print("MAC: %02X:%02X:%02X:%02X:%02X:%02X\r\n",gWIZNETINFO.mac[0],gWIZNETINFO.mac[1],gWIZNETINFO.mac[2],
 	  gWIZNETINFO.mac[3],gWIZNETINFO.mac[4],gWIZNETINFO.mac[5]);
 	pRsrc->print("SIP: %d.%d.%d.%d\r\n", gWIZNETINFO.ip[0],gWIZNETINFO.ip[1],gWIZNETINFO.ip[2],gWIZNETINFO.ip[3]);
-	pRsrc->print("GAR: %d.%d.%d.%d\r\n", gWIZNETINFO.gw[0],gWIZNETINFO.gw[1],gWIZNETINFO.gw[2],gWIZNETINFO.gw[3]);
 	pRsrc->print("SUB: %d.%d.%d.%d\r\n", gWIZNETINFO.sn[0],gWIZNETINFO.sn[1],gWIZNETINFO.sn[2],gWIZNETINFO.sn[3]);
-	pRsrc->print("DNS: %d.%d.%d.%d\r\n", gWIZNETINFO.dns[0],gWIZNETINFO.dns[1],gWIZNETINFO.dns[2],gWIZNETINFO.dns[3]);
-	pRsrc->printS("======================\r\n");
+	pRsrc->print("GAR: %d.%d.%d.%d\r\n", gWIZNETINFO.gw[0],gWIZNETINFO.gw[1],gWIZNETINFO.gw[2],gWIZNETINFO.gw[3]);
+	//pRsrc->print("DNS: %d.%d.%d.%d\r\n", gWIZNETINFO.dns[0],gWIZNETINFO.dns[1],gWIZNETINFO.dns[2],gWIZNETINFO.dns[3]);
+	//pRsrc->printS("======================\r\n");
 }
 
-static void net_reLink(WizDevRsrc* pRsrc){
+static void net_reLink(WizDevRsrc* pRsrc, wiz_NetInfo info){
 	/* Network initialization */
+	pRsrc->onFirstLinked = 0;
+	pRsrc->gWIZNETINFO = info;
 	ctlnetwork(CN_SET_NETINFO, (void*)&pRsrc->gWIZNETINFO);
 	net_initial(pRsrc);
 }
@@ -168,7 +172,7 @@ static void net_dev_loop(WizDevRsrc* pRsrc, u8 tick){
 		// per chkLinkTmr retry
 		if(pRsrc->chkLinkTick > pRsrc->chkLinkTmr){
 			// if(pRsrc->printS)	pRsrc->printS("Net disconnect, retry\n");
-			net_reLink(pRsrc);
+			net_reLink(pRsrc, pRsrc->gWIZNETINFO);
 			pRsrc->chkLinkTick = 0;
 		}
 		pRsrc->isLinked = 0;
@@ -176,7 +180,10 @@ static void net_dev_loop(WizDevRsrc* pRsrc, u8 tick){
 	}
 	else {
 		if(pRsrc->isLinked == 0){	// print info
-			net_printInfo(pRsrc);
+			if(pRsrc->onFirstLinked == 0){
+				net_printInfo(pRsrc);
+				pRsrc->onFirstLinked = 1;
+			}
 			pRsrc->isLinked = 1;
 		}
 	}
@@ -204,6 +211,8 @@ static UdpDev_t* net_newUdp(
 	u8 tx_memsz,	//send buffer size, in K-bytes
 	u8 rx_memsz,	//send buffer size, in K-bytes
 	u16 localport,	
+	u8* rxRBPool,
+	u16 rxRBPoolLen,
 	void (*cb_newRcv)(u16 rcbBytes),	// callback while there are receive data
 	void (*cb_closed)()
 ){
@@ -221,7 +230,9 @@ static UdpDev_t* net_newUdp(
 				i,	// the socket no. bonding
 				tx_memsz,	//send buffer size, in K-bytes
 				rx_memsz,	//send buffer size, in K-bytes	
-				localport,
+				localport,	// local port
+				rxRBPool, 	// receive buffer for ring buffer
+				rxRBPoolLen,	// receive buffer length
 				cb_newRcv,	// callback while there are receive data
 				cb_closed
 			);

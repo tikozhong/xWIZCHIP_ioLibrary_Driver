@@ -54,7 +54,7 @@
 
 #include "board.h"
 
-const PIN_T* CS = &LAN_CS1;
+const PIN_T* CS = &LAN_CS;
 SPI_HandleTypeDef *hspiWinet = &hspi1;
 
 /////////////

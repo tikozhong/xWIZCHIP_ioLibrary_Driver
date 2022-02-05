@@ -56,7 +56,7 @@ void TcpSeverDev_setup(
 
 static int32_t TcpSeverLoop(TcpSeverRsrc_t* pRsrc, u16 tick){
    int32_t ret;
-   uint16_t size = 0, sentsize=0;
+   uint16_t size = 0;
    uint8_t destip[4];
    uint16_t destport;
 	u8 sn = pRsrc->sn;
@@ -112,17 +112,16 @@ static  int32_t TcpSeverSend(TcpSeverRsrc_t* p, u8* buff, u16 size){
 		}
 		sentsize += ret; // Don't care SOCKERR_BUSY, because it is zero.
 	}
+	return 0;
 }
 
 static int32_t TcpSeverPrint(TcpSeverRsrc_t* p, const char* FORMAT_ORG, ...){
-	char buff[1024] = {0};
+	char buff[MAX_CMD_LEN] = {0};
 	va_list ap;
 	s16 bytes;
-	char *buf;
-	u16 len;
 	//take string
 	va_start(ap, FORMAT_ORG);
-	bytes = vsnprintf(buf, len, FORMAT_ORG, ap);
+	bytes = vsnprintf(buff, MAX_CMD_LEN, FORMAT_ORG, ap);
 	va_end(ap);
 	//send out
 	if(bytes>0)	TcpSeverSend(p, (u8*)buff, strlen(buff));
@@ -130,7 +129,7 @@ static int32_t TcpSeverPrint(TcpSeverRsrc_t* p, const char* FORMAT_ORG, ...){
 }
 
 static int32_t TcpSeverPrintS(TcpSeverRsrc_t* p, const char* S){
-	char buff[1024] = {0};
+	char buff[MAX_CMD_LEN] = {0};
 	strcpy(buff, S);
 	TcpSeverSend(p, (u8*)buff, strlen(buff));
 	return 0;
